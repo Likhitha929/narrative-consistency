@@ -1,10 +1,44 @@
+
+# Python
 __pycache__/
-cache/*
-!cache/embedding_index/
-exp/
+*.py[cod]
 *.log
-model_old/
-model_pretrained_e*/
-model_pretrained/last_mlm.pt
-model/last.pt
+pipeline.log
+
+# Virtual environmentsgit status
 venv/
+.venv/
+
+# Environment variables
+.env
+.env.*
+
+# macOS
+.DS_Store
+__MACOSX/
+
+# Model weights
+*.pt
+*.pth
+*.ckpt
+*.pkl
+*.npy
+
+# Model directories
+model/
+model_pretrained/
+models_ensemble/
+model_old/
+
+# Cache
+cache/
+
+# Generated outputs
+predictions.csv
+results.json
+final_eval.json
+exp_results.jsonl
+eval_plots/
+
+# Temporary files
+*.tmp
