@@ -1,0 +1,74 @@
+[
+ {
+  "book": "In Search of the Castaways",
+  "char": "Jacques Paganel",
+  "claim": "He had published acclaimed geographical studies of every inhabited continent before the Grant voyage gave him his greatest adventure throughout the course of events.",
+  "label": "consistent"
+ },
+ {
+  "book": "In Search of the Castaways",
+  "char": "Mary Grant",
+  "claim": "She formed a quiet and growing attachment to John Mangles, the Duncan's young captain, during the long voyage.",
+  "label": "consistent"
+ },
+ {
+  "book": "In Search of the Castaways",
+  "char": "Olbinett",
+  "claim": "He briefly considered abandoning the expedition in Australia after learning the true scale of the danger involved.",
+  "label": "contradict"
+ },
+ {
+  "book": "In Search of the Castaways",
+  "char": "Kai-Koumou",
+  "claim": "He twice released captured Europeans voluntarily after extracting information, well before the events of the expedition.",
+  "label": "contradict"
+ },
+ {
+  "book": "In Search of the Castaways",
+  "char": "Olbinett",
+  "claim": "His insistence on proper food preparation in difficult conditions drew gentle mockery but kept the party's morale intact.",
+  "label": "consistent"
+ },
+ {
+  "book": "In Search of the Castaways",
+  "char": "Thalcave",
+  "claim": "He communicated with the expedition through Paganel, who spoke enough of his language to translate adequately.",
+  "label": "consistent"
+ },
+ {
+  "book": "The Count of Monte Cristo",
+  "char": "Haydée",
+  "claim": "Her mother was one of Ali Pasha's most trusted wives, a woman of Greek and Albanian descent.",
+  "label": "consistent"
+ },
+ {
+  "book": "The Count of Monte Cristo",
+  "char": "Pierre Morrel",
+  "claim": "The Count secretly arranged the repayment of all Morrel's debts through a network of agents, ensuring the firm survived.",
+  "label": "consistent"
+ },
+ {
+  "book": "The Count of Monte Cristo",
+  "char": "Luigi Vampa",
+  "claim": "He broke his word to captives routinely whenever a better deal arose, treating honour as a purely tactical concept.",
+  "label": "contradict"
+ },
+ {
+  "book": "The Count of Monte Cristo",
+  "char": "Franz d'Épinay",
+  "claim": "He first encountered the Count in Paris at a dinner hosted by Morcerf, having never seen him in Italy.",
+  "label": "contradict"
+ },
+ {
+  "book": "The Count of Monte Cristo",
+  "char": "Noirtier",
+  "claim": "Villefort’s drift toward the royalists disappointed him; father and son argued politics at every family gathering.",
+  "label": "contradict"
+ },
+ {
+  "book": "The Count of Monte Cristo",
+  "char": "Faria",
+  "claim": "In Lisbon he backed constitutionalist Prince Pedro, was branded a Jacobin plotter out to poison King John VI and fled conservatives’ pursuit.",
+  "label": "contradict"
+ }
+]

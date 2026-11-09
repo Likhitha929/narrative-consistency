@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Narrative Consistency Verification from Scratch</title>
+<style>
+  @page { size: A4; margin: 18mm 17mm 18mm 17mm; }
+  body { font-family: "Charter", "Georgia", serif; font-size: 10.4pt; line-height: 1.42; color: #161616; background: #fff; }
+  h1 { font-size: 17pt; line-height: 1.2; margin: 0 0 4px; }
+  .meta { color: #555; font-size: 9.5pt; margin-bottom: 10px; }
+  .abstract { border-left: 3px solid #2a78d6; padding: 6px 12px; background: #f6f8fb; margin: 10px 0 14px; }
+  h2 { font-size: 12pt; margin: 16px 0 5px; border-bottom: 1px solid #ddd; padding-bottom: 2px; }
+  h3 { font-size: 10.6pt; margin: 10px 0 3px; }
+  p { margin: 4px 0 7px; text-align: justify; }
+  table { border-collapse: collapse; width: 100%; font-size: 9.2pt; margin: 6px 0 4px; font-family: "Helvetica Neue", Arial, sans-serif; }
+  th, td { padding: 3px 6px; border-bottom: 1px solid #e3e3e3; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { border-bottom: 1.5px solid #888; font-weight: 600; }
+  tr.hl td { font-weight: 600; background: #f3f7fd; }
+  .cap { font-size: 8.8pt; color: #555; margin: 2px 0 10px; }
+  figure { margin: 8px 0 4px; } figure img { width: 100%; }
+  code { font-size: 9pt; background: #f2f2f2; padding: 0 3px; }
+  ul, ol { margin: 3px 0 7px 18px; padding: 0; } li { margin: 2px 0; }
+  .avoid { break-inside: avoid; }
+  h2, h3 { break-after: avoid; }
+</style></head><body>
+
+<h1>Narrative Consistency Verification with a From-Scratch Transformer: Leakage, Pretraining and Evidence</h1>
+<div class="meta">Chandra Mouli Kilari · M.Tech IT, ABV-IIITM Gwalior · Advanced NLP course project · November 2026</div>
+
+<div class="abstract"><b>Abstract.</b> We classify claims about characters in two novels as <i>consistent</i> with or <i>contradicting</i> the book, using a BERT-style encoder whose tokenizer and weights are trained from scratch, fed by hybrid BM25 + dense retrieval. An audit showed the originally reported 97.56% accuracy came from near-duplicate claims on both sides of a random split; a bag-of-words model that never reads the book scored 94.75% on that split. Under a leakage-free grouped split, the original model reaches 63.6% on unseen claims. Four changes raise this to <b>70.4%</b> (3-seed ensemble; F1 0.703, ROC-AUC 0.768): a book-trained tokenizer, masked-language-model pretraining on the novels, synthetic contradiction pairs mined from the text, and sentence-level evidence selection that fixes a truncation bug. Pretraining is the decisive ingredient (+20 points over an identical model without it). The final model is statistically on par with a strong claim-only baseline (72.0%; difference −1.6 points, 95% CI [−8.0, +4.8]). Evidence improves ranking (AUC 0.721 → 0.768) but its accuracy effect is not significant, so the dataset's wording artifacts, not model capacity, remain the main obstacle.</div>
+
+<h2>1 Task and data</h2>
+<p>The labelled set (<code>combined_train_v2.csv</code>) has 4,569 rows of claims about characters from <i>The Count of Monte Cristo</i> and <i>In Search of the Castaways</i>, each tagged with the character and a label (55.8% consistent). The rows contain only <b>1,669 distinct claims</b>: the rest are paraphrased copies with filler such as “Moreover, …” or “… according to the text.” Claims typically summarise a character's arc (“He spoke only Italian and Latin and relied on Dantès to translate…”), and 66% begin with a pronoun.</p>
+
+<h2>2 Evaluation audit</h2>
+<p>The original 97.56% validation accuracy came from a random 80/20 row split. Grouping each claim with its copies (token-set Jaccard ≥ 0.6 within a book, after stripping fillers) showed that about 75% of validation rows had a near-copy in training. A TF-IDF + logistic-regression model on the claim text alone, which never sees the book, scored 94.75% on that split.</p>
+<p>All results below use a <b>grouped split</b> (<code>StratifiedGroupKFold</code>): train 3,263 rows / 1,192 claim groups, validation 653 / 239, held-out test 653 / 238, with no claim group in more than one part. Checkpoints and decision rules are chosen on validation. The claim-only baseline is reported next to every model, because it measures how far the labels can be guessed from wording alone. On unseen claims it still reaches <b>72.0%</b>, so the dataset carries strong lexical artifacts.</p>
+
+<h2>3 Method</h2>
+<p><b>Retrieval.</b> The novels are split into 200-word passages (50-word overlap). A query is scored by 0.6 · cosine similarity (all-MiniLM-L6-v2) + 0.4 · max-normalised BM25, restricted to the claim's book. The MiniLM sentence encoder is the only pretrained component, and it is used for retrieval only. Because most claims start with “He” or “She”, the character name is prefixed to both the query and the claim (<code>"Villefort: He …"</code>).</p>
+<p><b>Sentence-level evidence (bug fix).</b> The original input concatenated the top three passages (≈840 tokens), but the encoder reads 256 tokens, so truncation left the model only the first quarter of the top passage. The new selector splits the top eight passages into sentences and scores each by cosine similarity to the claim, plus 0.1 if it names the character. It then packs the best sentences into the token budget in reading order.</p>
+<p><b>Encoder.</b> A pre-LayerNorm Transformer encoder written in PyTorch (4 layers, 4 heads, d = 256, FFN 1024, learned positions, segment embeddings), with 6.06M parameters. Input is <code>[CLS] evidence [SEP] character: claim [SEP]</code>, and a linear head on [CLS] predicts the label.</p>
+<p><b>Book tokenizer.</b> An 8,000-token WordPiece vocabulary trained on the six book files in the corpus (the two labelled novels, <i>The Hound of the Baskervilles</i> and three true-crime texts), which are also the MLM pretraining corpus. The original setup borrowed BERT's 30,522-token vocabulary, whose embedding table alone was 7.8M of the 10.8M parameters.</p>
+<p><b>Masked-LM pretraining.</b> BERT-style MLM on 938k tokens of book text: 15% masking (80/10/10), two-segment 256-token windows, and a decoder tied to the input embeddings. Training uses AdamW (peak lr 7 × 10<sup>−4</sup>, 6% warm-up, linear decay) for 100 epochs, about 5.5 CPU-hours on two cores. The last 2% of tokens are held out.</p>
+<p><b>Synthetic contradiction pairs.</b> Real claims can be classified from wording, which gives a classifier no reason to read the evidence. We therefore mine 2,400 self-supervised examples from the books. A <i>consistent</i> example is a book sentence with light, meaning-preserving edits. A <i>contradict</i> example is the same sentence with one fact changed: two characters' roles swapped, a name replaced, a number changed, or a negation flipped. Both members of a pair share their wording, so only comparison with the evidence can separate them.</p>
+<p><b>Fine-tuning.</b> lr 10<sup>−4</sup>, label smoothing 0.1, batch 16, up to 14 epochs with early stopping on validation macro-F1. Sampling is group-balanced: one random copy per claim group per epoch, so heavily duplicated claims are not over-weighted.</p>
+
+<h2>4 Results</h2>
+<div class="avoid">
+<figure><img src="fig_pretraining.png" alt="Pretraining curves"></figure>
+<div class="cap">Figure 1. MLM pretraining on the novels. Held-out perplexity falls from 249 (epoch 30) to 128 (60) and 98 (100); masked-token accuracy rises from 20.8% to 28.5% and is still improving at epoch 100.</div>
+</div>
+
+<div class="avoid">
+<table>
+<tr><th>Held-out test, n = 653 rows / 238 unseen claim groups</th><th>Acc.</th><th>Macro F1</th><th>ROC-AUC</th><th>Acc. without evidence</th></tr>
+<tr><td>Majority class</td><td>55.7</td><td>—</td><td>0.500</td><td>—</td></tr>
+<tr><td>Claim-only TF-IDF baseline (never reads the book)</td><td>72.0</td><td>0.716</td><td>0.817</td><td>—</td></tr>
+<tr><td>Original model (BERT vocab, no pretraining, 10.8M)</td><td>63.6</td><td>0.590</td><td>0.669</td><td>—</td></tr>
+<tr><td>Control: MLM-60 recipe, random init (no pretraining)</td><td>45.6</td><td>0.354</td><td>0.568</td><td>55.7</td></tr>
+<tr><td>Book tokenizer + MLM 30 ep + char prefix</td><td>62.3</td><td>0.616</td><td>0.632</td><td>64.3</td></tr>
+<tr><td>&nbsp;&nbsp;+ synthetic pairs</td><td>63.6</td><td>0.625</td><td>0.656</td><td>53.9</td></tr>
+<tr><td>&nbsp;&nbsp;+ MLM 60 epochs</td><td>65.4</td><td>0.649</td><td>0.694</td><td>66.6</td></tr>
+<tr><td>&nbsp;&nbsp;+ sentence evidence, 2× synthetic</td><td>59.1</td><td>0.590</td><td>0.664</td><td>56.4</td></tr>
+<tr><td>&nbsp;&nbsp;+ sentence evidence, 1× synthetic</td><td>68.1</td><td>0.681</td><td>0.725</td><td>68.9</td></tr>
+<tr><td>&nbsp;&nbsp;+ MLM 100 epochs, single seeds (mean ± sd, n = 3)</td><td>69.8 ± 3.1</td><td>0.697</td><td>0.747 ± 0.038</td><td>65.5 ± 3.5</td></tr>
+<tr class="hl"><td>&nbsp;&nbsp;+ MLM 100 epochs, 3-seed ensemble (final)</td><td>70.4</td><td>0.703</td><td>0.768</td><td>68.6</td></tr>
+</table>
+<div class="cap">Table 1. All runs use the same grouped split. “Without evidence” re-scores the same model with the evidence segment emptied. Rows marked “+” are cumulative. MCC of the final ensemble is 0.411 vs 0.431 for the baseline.</div>
+</div>
+
+<div class="avoid">
+<figure><img src="fig_progression.png" alt="Accuracy progression"></figure>
+<div class="cap">Figure 2. Held-out accuracy by stage. Without pretraining, the same model never leaves the majority-class plateau.</div>
+</div>
+
+<h3>4.1 Pretraining is decisive</h3>
+<p>With the same architecture and training data (learning rate and dropout retuned for random initialisation), the randomly initialised model reaches 45.6%, below the majority class, while the MLM-pretrained encoder reaches 65.4%, a gain of about 20 points. With only 1,192 training claim groups, a randomly initialised Transformer cannot learn what the words mean. The unlabelled novels supply that knowledge for free. Longer pretraining also helped at fixed data: 30 → 60 epochs raised accuracy from 63.6% to 65.4%, and 60 → 100 epochs (with sentence evidence) from 68.1% to a 69.8% seed mean. The MLM loss had not converged at 100 epochs.</p>
+
+<h3>4.2 Does the model use the book?</h3>
+<div class="avoid">
+<figure><img src="fig_ablation.png" alt="Evidence ablation"></figure>
+<div class="cap">Figure 3. Each final model scored with and without its evidence. Removing evidence lowers AUC for every seed, but accuracy only for two of three.</div>
+</div>
+<p>Without synthetic pairs, removing the passages did not hurt (62.3% with, 64.3% without): the model ignored the book. Adding the pairs made it depend on them (63.6% → 53.9% without). In the final ensemble, evidence lifts ROC-AUC from 0.721 to 0.768 and accuracy by 1.8 points. A cluster bootstrap over test claim groups gives a 95% CI of [−3.6, +7.2] points for the accuracy effect, so it is not significant. Individual seeds range from a 9-point benefit (seed 42) to none (seed 7). The model therefore uses evidence to rank its confidence, but much of its accuracy still comes from the claim text.</p>
+
+<h3>4.3 Comparison with the claim-only baseline</h3>
+<p>The ensemble trails the baseline by 1.6 points. The paired cluster-bootstrap 95% CI for the difference is [−8.0, +4.8], so the two are statistically indistinguishable on this test set. The baseline keeps a clear AUC advantage (0.817 vs 0.768). With an earlier model, stacking it with the baseline (logistic regression fit on validation) did not beat the baseline alone (71.5%). Since the baseline reads no evidence at all, matching it means the from-scratch model learns the lexical cues and some evidence use, but not enough evidence use to overcome the artifacts.</p>
+
+<h3>4.4 Variance and what did not work</h3>
+<p>Fine-tuning variance is large: seeds differ by up to 6 points of accuracy, and two recipes with near-identical validation F1 (0.689 vs 0.699) differed by 9 points on test. Single-run comparisons on 238 claim groups are therefore unreliable, which is why the final model is reported as a seed mean and an ensemble. Doubling the synthetic data, so that synthetic examples outnumbered real ones 1.5 : 1, hurt badly (59.1%): the model drifted toward the synthetic task. A val-tuned decision threshold did not transfer to test and is not used.</p>
+
+<h2>5 Limitations</h2>
+<ul>
+  <li><b>Artifacts.</b> The dataset is self-constructed, and its contradictions are lexically distinguishable from consistent claims. A claim-only model gets 72%, which caps what the data can show about evidence use.</li>
+  <li><b>Test reuse.</b> Design choices were made on validation, but test scores were inspected after every run, so the final test numbers may be mildly optimistic.</li>
+  <li><b>Evidence recall.</b> Claims summarise whole storylines, but the model sees about 240 tokens of evidence. Many deciding facts are probably never retrieved.</li>
+  <li><b>Scope.</b> Two novels in one genre. <code>Dataset/test.csv</code> (60 rows) is unlabelled and cannot be scored.</li>
+</ul>
+
+<h2>6 Next steps</h2>
+<ol>
+  <li><b>Minimal-pair test set:</b> rewrite consistent claims into contradictions by single edits, removing the wording shortcut, so evidence use can be measured directly.</li>
+  <li><b>Character dossiers:</b> retrieve from every passage that mentions the character, or use a longer encoder with extended position embeddings.</li>
+  <li><b>Longer pretraining</b> and a cross-attention (ESIM-style) comparison layer between claim and evidence tokens.</li>
+</ol>
+
+<h2>Reproducibility</h2>
+<p>All code, the pretrained encoder, the three fine-tuned seeds, the experiment log (<code>exp_results.jsonl</code>) and the final evaluation (<code>final_eval.json</code>) are in the repository. Pipeline: <code>book_tokenizer.py → pretrain_mlm.py → synth_data.py → main.py</code>. An interactive demo (<code>streamlit run app.py</code>) shows the selected evidence, the verdict, and the verdict without evidence for any claim.</p>
+</body></html>

@@ -1,0 +1,12 @@
+{
+  "vocab_size": 8000,
+  "embed_dim": 256,
+  "num_heads": 4,
+  "num_layers": 4,
+  "ffn_dim": 1024,
+  "max_len": 256,
+  "num_labels": 2,
+  "dropout": 0.1,
+  "focal_gamma": 0.0,
+  "label_smoothing": 0.1
+}

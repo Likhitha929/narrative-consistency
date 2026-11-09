@@ -1,0 +1,10 @@
+__pycache__/
+cache/*
+!cache/embedding_index/
+exp/
+*.log
+model_old/
+model_pretrained_e*/
+model_pretrained/last_mlm.pt
+model/last.pt
+venv/
